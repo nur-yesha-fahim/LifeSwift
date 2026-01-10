@@ -1,7 +1,7 @@
 package com.mycompany.life_swift;
 import java.sql.*;
 import javax.swing.JOptionPane;
-
+import net.proteanit.sql.DbUtils;
 public class NGO_Sign extends javax.swing.JFrame {
     
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(NGO_Sign.class.getName());
