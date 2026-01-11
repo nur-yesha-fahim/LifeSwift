@@ -1,5 +1,5 @@
-
 package com.mycompany.maplocator;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -12,17 +12,16 @@ import java.util.TimerTask;
 public class NGOHelpRequestApp extends JFrame {
 
     private static final String REQUEST_FILE = "medical_requests.txt";
-    private static final int REFRESH_INTERVAL_SECONDS = 8; // Refresh every 8 seconds
+    private static final int REFRESH_INTERVAL_MS = 8000;
 
     private JTextArea displayArea;
-    private boolean isNGOView;
+    private final boolean isNGOView;
 
     public NGOHelpRequestApp(boolean isNGOView) {
         this.isNGOView = isNGOView;
 
-        setTitle(isNGOView ? "NGO Control Room - Incoming Requests" 
-                          : "Request Medical Help");
-        setSize(isNGOView ? 780 : 680, 780);
+        setTitle(isNGOView ? "NGO Control Room - Incoming Requests" : "Request Medical Help");
+        setSize(isNGOView ? 860 : 760, 860);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         getContentPane().setBackground(new Color(245, 250, 255));
@@ -37,137 +36,158 @@ public class NGOHelpRequestApp extends JFrame {
         setVisible(true);
     }
 
-    // ───────────────────────────────
-    //   PATIENT / HELP SEEKER VIEW
-    // ───────────────────────────────
+    // ───────────────────────────────────────────────
+    //              PATIENT REQUEST FORM
+    // ───────────────────────────────────────────────
     private void createPatientView() {
-        JLabel title = new JLabel("Request Medical Assistance", SwingConstants.CENTER);
-        title.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        title.setBounds(60, 30, 560, 50);
-        add(title);
+        int leftMargin = 80;
+        int labelWidth = 220;     // ← wider labels so text is fully visible
+        int fieldX = 320;         // ← moved fields to the right
+        int fieldWidth = 380;
 
-        addLabel("Your Name:", 70, 110);
+        add(createTitle("Request Medical / Emergency Support", 35));
+
+        // 1. Name
+        add(createLabel("Your Full Name *", leftMargin, 110));
         JTextField nameField = new JTextField();
-        nameField.setBounds(200, 110, 420, 38);
+        nameField.setBounds(fieldX, 110, fieldWidth, 42);
         add(nameField);
 
-        addLabel("Your Area/Location:", 70, 170);
-        JTextField locationField = new JTextField("Gazipur / Tongi / Boardbazar / ...");
-        locationField.setBounds(200, 170, 420, 38);
+        // 2. Location
+        add(createLabel("Your Area / Location *", leftMargin, 175));
+        JTextField locationField = createPlaceholderField("Example: Tongi, Board Bazar, Gazipur Sadar, Uttara...");
+        locationField.setBounds(fieldX, 175, fieldWidth, 42);
         add(locationField);
 
-        addLabel("What help do you need:", 70, 230);
-        String[] helpTypes = {
-            "Medical Team / Doctor visit",
-            "Oxygen Cylinder",
-            "Ambulance / Patient transport",
-            "First Aid Kit & basic medicines",
-            "Nebulizer machine",
-            "Glucometer + test strips",
-            "Wound dressing materials",
-            "Other medical support"
-        };
-        JComboBox<String> helpCombo = new JComboBox<>(helpTypes);
-        helpCombo.setBounds(200, 230, 420, 38);
-        add(helpCombo);
+        // 3. People needed - NOW FULLY VISIBLE
+        add(createLabel("How many people / team members needed?", leftMargin, 240));
+        JTextField peopleField = new JTextField("2");
+        peopleField.setBounds(fieldX, 240, 140, 42);
+        add(peopleField);
 
-        addLabel("How many / Quantity:", 70, 290);
-        JTextField quantityField = new JTextField("1");
-        quantityField.setBounds(200, 290, 120, 38);
-        add(quantityField);
+        // 4. Main request - NOW FULLY VISIBLE
+        add(createLabel("What kind of help / support do you need? *", leftMargin, 305));
+        JTextArea requestArea = new JTextArea();
+        requestArea.setLineWrap(true);
+        requestArea.setWrapStyleWord(true);
+        add(new JScrollPane(requestArea) {{
+            setBounds(fieldX, 305, fieldWidth, 160);
+        }});
 
-        addLabel("More details / condition:", 70, 340);
+        // 5. More details
+        add(createLabel("More details / patient condition:", leftMargin, 490));
         JTextArea detailsArea = new JTextArea();
         detailsArea.setLineWrap(true);
-        JScrollPane scroll = new JScrollPane(detailsArea);
-        scroll.setBounds(200, 340, 420, 140);
-        add(scroll);
+        add(new JScrollPane(detailsArea) {{
+            setBounds(fieldX, 490, fieldWidth, 130);
+        }});
 
-        JButton sendButton = new JButton("SEND HELP REQUEST NOW");
-        sendButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        sendButton.setBackground(new Color(200, 50, 50));
-        sendButton.setForeground(Color.WHITE);
-        sendButton.setBounds(200, 510, 420, 65);
-        add(sendButton);
+        // Send button
+        JButton sendBtn = new JButton("SEND HELP REQUEST NOW");
+        sendBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        sendBtn.setBackground(new Color(200, 40, 60));
+        sendBtn.setForeground(Color.WHITE);
+        sendBtn.setBounds(fieldX, 650, fieldWidth, 70);
+        add(sendBtn);
 
-        sendButton.addActionListener(e -> {
+        sendBtn.addActionListener(e -> {
             String name = nameField.getText().trim();
+            String location = getCleanText(locationField);
+            String people = peopleField.getText().trim();
+            String mainRequest = requestArea.getText().trim();
+
             if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please write your name", "Required", JOptionPane.WARNING_MESSAGE);
+                showWarning("Please enter your name");
+                return;
+            }
+            if (location.isEmpty() || location.contains("Example:")) {
+                showWarning("Please enter your actual location");
+                return;
+            }
+            if (mainRequest.isEmpty()) {
+                showWarning("Please describe what kind of help you need");
                 return;
             }
 
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd  HH:mm:ss"));
+            String timestamp = LocalDateTime.now()
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+            String safeMain   = mainRequest.replace("\n", " ").replace("|", "/").trim();
+            String safeDetail = detailsArea.getText().trim().replace("\n", " ").replace("|", "/");
+
             String entry = String.format(
-                "[%s]  NAME: %s  |  LOCATION: %s  |  REQUEST: %s  |  QTY: %s  |  DETAILS: %s\n",
-                timestamp,
-                name,
-                locationField.getText().trim(),
-                helpCombo.getSelectedItem(),
-                quantityField.getText().trim(),
-                detailsArea.getText().trim().replace("\n", " ")
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                "[%s]  STATUS: NEW\n" +
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                "Name:      %s\n" +
+                "Location:  %s\n" +
+                "People:    %s\n" +
+                "Request:   %s\n" +
+                "Details:   %s\n" +
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n",
+                timestamp, name, location,
+                people.isEmpty() ? "—" : people,
+                safeMain.length() > 180 ? safeMain.substring(0, 177) + "..." : safeMain,
+                safeDetail.isEmpty() ? "—" : safeDetail
             );
 
-            try (PrintWriter writer = new PrintWriter(new FileWriter(REQUEST_FILE, true))) {
-                writer.println(entry);
-                writer.println("─".repeat(80)); // separator line
-                JOptionPane.showMessageDialog(this,
-                    "Your request has been sent!\nNGO team will try to respond as soon as possible.",
-                    "Request Sent", JOptionPane.INFORMATION_MESSAGE);
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(REQUEST_FILE, true))) {
+                writer.write(entry);
+                writer.newLine();
+                JOptionPane.showMessageDialog(this, "Request sent successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
 
-                // Clear fields
                 nameField.setText("");
                 locationField.setText("");
-                quantityField.setText("1");
+                locationField.setForeground(new Color(140,140,140));
+                peopleField.setText("1");
+                requestArea.setText("");
                 detailsArea.setText("");
             } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this,
-                    "Error saving request:\n" + ex.getMessage(),
-                    "File Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Cannot save request\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
     }
 
-    // ───────────────────────────────
-    //   NGO WORKER / CONTROL ROOM VIEW
-    // ───────────────────────────────
+    // ───────────────────────────────────────────────
+    //              NGO DASHBOARD VIEW (unchanged)
+    // ───────────────────────────────────────────────
     private void createNGOView() {
-        JLabel title = new JLabel("Incoming Help Requests (Live)", SwingConstants.CENTER);
-        title.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        title.setBounds(60, 20, 660, 50);
-        add(title);
+        add(createTitle("Incoming Requests – Live View", 30));
 
         displayArea = new JTextArea();
         displayArea.setEditable(false);
         displayArea.setFont(new Font("Consolas", Font.PLAIN, 14));
-        displayArea.setBackground(new Color(255, 252, 240));
+        displayArea.setBackground(new Color(255, 253, 240));
         displayArea.setLineWrap(true);
+
         JScrollPane scroll = new JScrollPane(displayArea);
-        scroll.setBounds(30, 90, 720, 620);
+        scroll.setBounds(30, 100, 800, 700);
         add(scroll);
 
-        // Auto-refresh timer
-        new Timer().scheduleAtFixedRate(new TimerTask() {
+        Timer timer = new Timer(true);
+        timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
                 loadRequests();
             }
-        }, 0, REFRESH_INTERVAL_SECONDS * 1000);
+        }, 0, REFRESH_INTERVAL_MS);
     }
 
     private void loadRequests() {
         StringBuilder content = new StringBuilder();
-        content.append("Last updated: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))).append("\n\n");
+        content.append("Last updated: ")
+               .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")))
+               .append("\n\n");
 
         try (BufferedReader br = new BufferedReader(new FileReader(REQUEST_FILE))) {
             String line;
             while ((line = br.readLine()) != null) {
                 content.append(line).append("\n");
             }
-        } catch (FileNotFoundException e) {
-            content.append("No requests received yet...\nWaiting for incoming help calls.");
+        } catch (FileNotFoundException ignored) {
+            content.append("No requests received yet...\n");
         } catch (IOException e) {
-            content.append("Error reading request file.");
+            content.append("Error reading file\n");
         }
 
         SwingUtilities.invokeLater(() -> {
@@ -176,21 +196,59 @@ public class NGOHelpRequestApp extends JFrame {
         });
     }
 
-    private void addLabel(String text, int x, int y) {
+    // ───────────────────────────────────────────────
+    //                   HELPERS
+    // ───────────────────────────────────────────────
+    private JLabel createTitle(String text, int y) {
+        JLabel lbl = new JLabel(text, SwingConstants.CENTER);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        lbl.setBounds(40, y, 680, 60);
+        return lbl;
+    }
+
+    private JLabel createLabel(String text, int x, int y) {
         JLabel lbl = new JLabel(text);
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 15));
-        lbl.setBounds(x, y, 130, 35);
-        add(lbl);
+        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 16));   // ← slightly larger & clearer
+        lbl.setBounds(x, y, 240, 42);
+        return lbl;
+    }
+
+    private JTextField createPlaceholderField(String placeholder) {
+        JTextField field = new JTextField(placeholder);
+        field.setForeground(new Color(140, 140, 140));
+
+        field.addFocusListener(new FocusAdapter() {
+            public void focusGained(FocusEvent e) {
+                if (field.getText().equals(placeholder)) {
+                    field.setText("");
+                    field.setForeground(Color.BLACK);
+                }
+            }
+            public void focusLost(FocusEvent e) {
+                if (field.getText().trim().isEmpty()) {
+                    field.setForeground(new Color(140, 140, 140));
+                    field.setText(placeholder);
+                }
+            }
+        });
+        return field;
+    }
+
+    private String getCleanText(JTextField field) {
+        String text = field.getText().trim();
+        return text.contains("Example:") ? "" : text;
+    }
+
+    private void showWarning(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Required Field", JOptionPane.WARNING_MESSAGE);
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             int choice = JOptionPane.showConfirmDialog(null,
-                "Are you NGO Worker / Control Room?\n\nYes = NGO View (see requests)\nNo = Patient / Help Seeker View",
-                "Choose Your Role", JOptionPane.YES_NO_OPTION);
-
-            boolean isNGO = (choice == JOptionPane.YES_OPTION);
-            new NGOHelpRequestApp(isNGO);
+                "Are you NGO Worker / Control Room?\n\nYes = View requests\nNo = Make request",
+                "Select Role", JOptionPane.YES_NO_OPTION);
+            new NGOHelpRequestApp(choice == JOptionPane.YES_OPTION);
         });
     }
 }
